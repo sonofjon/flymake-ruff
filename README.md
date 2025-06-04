@@ -73,3 +73,40 @@ remove Pyright's "variable not accessed" notes, add the following:
 
 (advice-add 'eglot--report-to-flymake :filter-args #'my-filter-eglot-diagnostics))
 ```
+
+## Jump to Ruff rule documentation
+
+The following helper scans the Flymake diagnostics buffer at point for a
+“[RULE123]”-style code and opens its reference page at
+https://docs.astral.sh/ruff/rules.
+
+```elisp
+;; Open Ruff docs from Flymake
+(defun flymake-ruff-goto-doc ()
+"Browse to the documentation for the Ruff rule on a Flymake diagnostic line.
+
+Scans the Flymake diagnostic at point for a “[RULE123]”-style code and
+browses to its documentation at https://docs.astral.sh/ruff/rules."
+(interactive)
+(unless (or (derived-mode-p 'flymake-diagnostics-buffer-mode)
+            (derived-mode-p 'flymake-project-diagnostics-mode))
+    (user-error "Not in a Flymake diagnostics buffer"))
+  (let* ((id (tabulated-list-get-id))
+         (diag (or (plist-get id :diagnostic)
+                   (user-error "Bad Flymake ID: %S" id)))
+         (msg (flymake-diagnostic-text diag)))
+    (unless (string-match (rx "[" (group (1+ upper-case) (1+ digit)) "]")
+                          msg)
+      (user-error "No Ruff rule (like [RULE123]) in diagnostic: %s" msg))
+    (browse-url
+     (format "https://docs.astral.sh/ruff/rules/%s"
+             (match-string 1 msg)))))
+
+(with-eval-after-load 'flymake
+  (define-key flymake-diagnostics-buffer-mode-map
+              (kbd "M-RET") #'flymake-ruff-goto-doc)
+  (define-key flymake-project-diagnostics-mode-map
+              (kbd "M-RET") #'flymake-ruff-goto-doc))
+```
+
+Now, when you’re in any Flymake diagnostics buffer, pressing `M-RET` on a line containing a Ruff rule will open the corresponding rule page in your browser.
